@@ -5,19 +5,31 @@ const saltRounds = 10
 const session = require("express-session")
 const mongo = require("connect-mongo")
 
-/* GET home page */
+
 router.get("/", (req, res, next) => {
   res.render("index");
 });
 
-/*Get to Sign Up*/
-router.get("/sign-up", (req, res, next) => {
+router.get("/signup", (req, res, next) => {
   res.render("sign-up");
 });
 
-router.post("/sign-up", (req, res, next) => {
-
-  const { username, email, password } = req.body;
+router.post('/sign-up', (req, res, next) => {
+  const { username, email, password } = req.body
+  if (!username || !email || !password) {
+    res.render('sign-up', {
+      errorMessage: 'All fields are mandatory. Please provide your username, email and password.',
+    })
+    return
+  }
+  const regex = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/
+  if (!regex.test(password)) {
+    res.status(500).render('sign-up', {
+      errorMessage:
+        'Password needs to have at least 6 chars and must contain at least one number, one lowercase and one uppercase letter.',
+    })
+    return
+  }
 
   bcryptjs
     .genSalt(saltRounds)
@@ -26,18 +38,27 @@ router.post("/sign-up", (req, res, next) => {
       return User.create({
         username,
         email,
-        password: hashedPassword
-      });
+        password: hashedPassword,
+      })
     })
     .then(userFromDB => {
-      console.log('Newly created user is: ', userFromDB);
+      res.redirect('/userProfile',{userFromDB})
+    })
+    .catch(error => {
+      if (error instanceof mongoose.Error.ValidationError) {
+        res.status(500).render('sign-up', { errorMessage: error.message })
+      } else if (error.code === 11000) {
+        res.status(500).render('sign-up', {
+          errorMessage:
+            'Username and email need to be unique. Either username or email is already used.',
+        })
+      } else {
+        next(error)
+      }
+    }) 
+})
 
-    })
-    .then( () => {
-      res.redirect('user-profile')
-    })
-    .catch(error => next(error))
-});
+
 
 /*Get to Login*/
 router.get("/login", (req, res, next) => {
